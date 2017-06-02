@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h> 
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
@@ -12,7 +12,7 @@ void error(const char *msg) { perror(msg); exit(1); } // Error function used for
 void listenAndAcceptConnections(char* port);
 int verifyClient(int fd);
 void sendToClient(int socketFD, char *string);
-
+char* encryptText(char *text, char *key);
 
 int main(int argc, char *argv[])
 {
@@ -20,8 +20,8 @@ int main(int argc, char *argv[])
 	if (argc < 2) { fprintf(stderr, "USAGE: %s port\n", argv[0]); exit(1); } // Check usage & args
 
 	listenAndAcceptConnections(argv[1]);
-	
-	return 0; 
+
+	return 0;
 }
 
 
@@ -58,58 +58,51 @@ void listenAndAcceptConnections(char* port)
 	sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
 	establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
 
-	if (establishedConnectionFD < 0) 
+	if (establishedConnectionFD < 0)
 		error("ERROR on accept");
 
 	// Get the message from the client and display it
 	memset(buffer, '\0', 256);
 	charsRead = recv(establishedConnectionFD, buffer, 255, 0); // Read the client's message from the socket
 
-	if (charsRead < 0) 
+	if (charsRead < 0)
 		error("ERROR reading from socket");
 	else if (strcmp(buffer, clientConfirmationCode) == 0) {
 		printf("SERVER: client is verified: \"%s\".\n", buffer);
 
 		sendToClient(establishedConnectionFD, serverConfirmationCode);
 
-		printf("can you see me?\n");
-
-		packetSize = sizeof(key) -1 ;
-
-		while (charsRead != packetSize || charsRead != 0) {
-			printf("charsRead: %d\n", charsRead); fflush(stdout);
-			charsRead = recv(establishedConnectionFD, key, packetSize, 0);
-			if (charsRead < 0) {
-				error("ERROR reading plain text from socket");
-				break;
-			}
-			packetSize -= charsRead;
+		charsRead = recv(establishedConnectionFD, key, sizeof(key) - 1, 0);
+		if (charsRead < 0) {
+			error("ERROR reading plain text from socket");
 		}
+		else if (charsRead < sizeof(key) - 1) {
+			printf("SERVER: There may be more data for key.\n"); fflush(stdout);
+		}
+
+		printf("SERVER: key charsRead %d\n", charsRead);
+
  // Read the client's message from the socket
 
-		printf("SERVER received key: %s\n", key);
+		printf("SERVER received key: %s\n", key); fflush(stdout);
 
-		packetSize = sizeof(plainText) - 1;
-
-		while (charsRead != packetSize || charsRead != 0) {
-			printf("charsRead: %s\n", charsRead); fflush(stdout);
-			charsRead = recv(establishedConnectionFD, key, packetSize, 0);
-			if (charsRead < 0) {
-				error("ERROR reading plain text from socket");
-				break;
-			}
-			packetSize -= charsRead;
+		charsRead = recv(establishedConnectionFD, plainText, sizeof(plainText) - 1, 0);
+		if (charsRead < 0) {
+			error("ERROR reading plain text from socket"); fflush(stdout);
+		}
+		else if (charsRead < sizeof(plainText) - 1) {
+			printf("SERVER: There may be more data for plain text.\n"); fflush(stdout);
 		}
 
-		printf("SERVER received plain text: %s\n", plainText);
+		printf("SERVER: plain text charsRead %d\n", charsRead);
+		printf("SERVER received plain text: %s\n", plainText); fflush(stdout);
 	}
 	else {
 		printf("SERVER: client is not verified: %s . Closing Connection.\n", buffer);
-		close(establishedConnectionFD); // Close the existing socket which is connected to the client
-		close(listenSocketFD); // Close the listening socket
 	}
-	
 
+	close(establishedConnectionFD); // Close the existing socket which is connected to the client
+	close(listenSocketFD); // Close the listening socket
 }
 
 
@@ -137,11 +130,34 @@ void sendToClient(int socketFD, char *string)
 	int charsWritten;
 	charsWritten = send(socketFD, string, strlen(string), 0); // Write to the server
 	if (charsWritten < 0)
-		error("CLIENT: ERROR writing to socket");
+		error("SERVER: ERROR writing to socket");
 	else if (charsWritten < strlen(string))
-		printf("CLIENT: WARNING: Not all data written to socket!\n");
+		printf("SERVER: WARNING: Not all data written to socket!\n");
 	else {
-		printf("charsWritten: %d\n", charsWritten);
-		printf("strlen: %d\n", strlen(string));
+		printf("SERVER charsWritten: %d\n", charsWritten); fflush(stdout);
+		printf("SERVER strlen: %zu\n", strlen(string)); fflush(stdout);
+	}
+}
+
+
+char* encryptText(char *text, char *key)
+{
+	char textChar, keyChar;
+	char *encryptedText = malloc(sizeof(char) * BUFFERSIZE);
+	memset(encryptedText, '\0', BUFFERSIZE);
+
+	while ((textChar = fgetc(text)) != '\n') {
+		if (textChar != 32)
+			textChar -= 64;
+		else
+			textChar -= 7;
+		keyChar = fgetc(key);
+		if (keyChar != 32)
+			keyChar -= 64;
+		else
+			keyChar -= 7;
+		textChar %= 26;
+		printf(textChar);
+		textChar += 65;
 	}
 }

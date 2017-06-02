@@ -12,7 +12,7 @@ const int BUFFERSIZE = 10000;
 void error(const char *msg) { perror(msg); exit(0); } // Error function used for reporting issues
 void connectAndSendData(char* plainTextPath, char* keyPath, char* port);
 void stringifyPlainTextAndKey(FILE *plain, FILE *key, char* plainTextString, char* keyString);
-void sendToServer(int socketFD, char* string, size_t size);
+void sendToServer(int socketFD, char* string);
 
 int main(int argc, char *argv[])
 {
@@ -68,12 +68,11 @@ void connectAndSendData(char* plainTextPath, char* keyPath, char* port)
 
 
 	// Initiate three-way handshake (sent client code)
-	sendToServer(socketFD, clientConfirmationCode, strlen(clientConfirmationCode));
+	sendToServer(socketFD, clientConfirmationCode);
 
 	// Get return message from server, confirm server code
 	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer again for reuse
 	charsRead = recv(socketFD, buffer, sizeof(buffer) - 1, 0); // Read data from the socket, leaving \0 at end
-
 	if (charsRead < 0)
 		error("CLIENT: ERROR reading from socket");
 
@@ -83,8 +82,8 @@ void connectAndSendData(char* plainTextPath, char* keyPath, char* port)
 		printf("CLIENT sending key:\n %s\n", keyString);
 		printf("CLIENT sending plain text:\n %s\n", plainTextString);
 
-		sendToServer(socketFD, keyString, BUFFERSIZE);
-		sendToServer(socketFD, plainTextString, BUFFERSIZE);
+		sendToServer(socketFD, keyString);
+		sendToServer(socketFD, plainTextString);
 	}
 
 	//printf("CLIENT: I received this from the server: \"%s\"\n", buffer);
@@ -126,16 +125,16 @@ void stringifyPlainTextAndKey(FILE *plain, FILE *key, char* plainTextString, cha
 }
 
 
-void sendToServer(int socketFD, char *string, size_t size)
+void sendToServer(int socketFD, char *string)
 {
 	int charsWritten;
-	charsWritten = send(socketFD, string, size-1, 0); // Write to the server
+	charsWritten = send(socketFD, string, strlen(string), 0); // Write to the server
 	if (charsWritten < 0)
 		error("CLIENT: ERROR writing to socket");
 	else if (charsWritten < strlen(string))
 		printf("CLIENT: WARNING: Not all data written to socket!\n");
 	else {
 		printf("charsWritten: %d\n", charsWritten);
-		printf("strlen: %d\n", strlen(string));
+		printf("strlen: %zu\n", strlen(string));
 	}
 }

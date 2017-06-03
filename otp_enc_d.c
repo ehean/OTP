@@ -12,11 +12,11 @@ void error(const char *msg) { perror(msg); exit(1); } // Error function used for
 void listenAndAcceptConnections(char* port);
 int verifyClient(int fd);
 void sendToClient(int socketFD, char *string);
+char* receiveFromClient(int socketFD, char *string);
 char* encryptText(char *text, char *key);
 
 int main(int argc, char *argv[])
 {
-
 	if (argc < 2) { fprintf(stderr, "USAGE: %s port\n", argv[0]); exit(1); } // Check usage & args
 
 	listenAndAcceptConnections(argv[1]);
@@ -32,7 +32,7 @@ void listenAndAcceptConnections(char* port)
 	char *clientConfirmationCode = "otp_enc";
 	char *serverConfirmationCode = "otp_enc_d";
 	char buffer[BUFFERSIZE];
-	char key[BUFFERSIZE];
+	char key [BUFFERSIZE];
 	char plainText[BUFFERSIZE];
 	struct sockaddr_in serverAddress, clientAddress;
 
@@ -54,54 +54,65 @@ void listenAndAcceptConnections(char* port)
 		error("ERROR on binding");
 	listen(listenSocketFD, 5); // Flip the socket on - it can now receive up to 5 connections
 
+	while (1) {
 							   // Accept a connection, blocking if one is not available until one connects
-	sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
-	establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
+		sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
 
-	if (establishedConnectionFD < 0)
-		error("ERROR on accept");
+		establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
 
-	// Get the message from the client and display it
-	memset(buffer, '\0', 256);
-	charsRead = recv(establishedConnectionFD, buffer, 255, 0); // Read the client's message from the socket
+		if (establishedConnectionFD < 0)
+			error("ERROR on accept");
 
-	if (charsRead < 0)
-		error("ERROR reading from socket");
-	else if (strcmp(buffer, clientConfirmationCode) == 0) {
-		printf("SERVER: client is verified: \"%s\".\n", buffer);
-
-		sendToClient(establishedConnectionFD, serverConfirmationCode);
-
-		charsRead = recv(establishedConnectionFD, key, sizeof(key) - 1, 0);
+		// Get the message from the client and display it
+		memset(buffer, '\0', 256);
+		//charsRead = recv(establishedConnectionFD, buffer, 255, 0); // Read the client's message from the socket
+		charsRead = recv(establishedConnectionFD, buffer, sizeof(buffer) - 1, 0);
 		if (charsRead < 0) {
-			error("ERROR reading plain text from socket");
+			error("ERROR reading data from socket"); fflush(stdout);
 		}
-		else if (charsRead < sizeof(key) - 1) {
-			printf("SERVER: There may be more data for key.\n"); fflush(stdout);
-		}
-
-		printf("SERVER: key charsRead %d\n", charsRead);
-
- // Read the client's message from the socket
-
-		printf("SERVER received key: %s\n", key); fflush(stdout);
-
-		charsRead = recv(establishedConnectionFD, plainText, sizeof(plainText) - 1, 0);
-		if (charsRead < 0) {
-			error("ERROR reading plain text from socket"); fflush(stdout);
-		}
-		else if (charsRead < sizeof(plainText) - 1) {
-			printf("SERVER: There may be more data for plain text.\n"); fflush(stdout);
+		else if (charsRead < sizeof(buffer) - 1) {
+			printf("SERVER: There may be more data from socket.\n"); fflush(stdout);
 		}
 
-		printf("SERVER: plain text charsRead %d\n", charsRead);
-		printf("SERVER received plain text: %s\n", plainText); fflush(stdout);
-	}
-	else {
-		printf("SERVER: client is not verified: %s . Closing Connection.\n", buffer);
-	}
+		if (charsRead < 0)
+			error("ERROR reading from socket");
+		else if (strcmp(buffer, clientConfirmationCode) == 0) {
+			printf("SERVER: client is verified: \"%s\".\n", buffer);
 
-	close(establishedConnectionFD); // Close the existing socket which is connected to the client
+			sendToClient(establishedConnectionFD, serverConfirmationCode);
+
+			//key = receiveFromClient(establishedConnectionFD, buffer);
+			memset(key, '\0', BUFFERSIZE);
+			charsRead = recv(establishedConnectionFD, key, sizeof(key) - 1, 0);
+			if (charsRead < 0) {
+				error("ERROR reading data from socket"); fflush(stdout);
+			}
+			else if (charsRead < sizeof(key) - 1) {
+				printf("SERVER: There may be more data from socket.\n"); fflush(stdout);
+			}
+
+			printf("SERVER received key: %s\n", key); //fflush(stdout);
+
+			//plainText = receiveFromClient(establishedConnectionFD, buffer);
+			charsRead = recv(establishedConnectionFD, plainText, sizeof(plainText) - 1, 0);
+			if (charsRead < 0) {
+				error("ERROR reading data from socket"); fflush(stdout);
+			}
+			else if (charsRead < sizeof(plainText) - 1) {
+				printf("SERVER: There may be more data from socket.\n"); fflush(stdout);
+			}
+
+			printf("SERVER received plain text: %s\n", plainText); //fflush(stdout);
+
+			char *encryptedText = encryptText(plainText, key);
+			sendToClient(establishedConnectionFD, encryptedText);
+		}
+		else {
+			printf("SERVER: client is not verified: %s . Closing Connection.\n", buffer);
+		}
+
+		close(establishedConnectionFD); // Close the existing socket which is connected to the client
+		}
 	close(listenSocketFD); // Close the listening socket
 }
 
@@ -139,25 +150,51 @@ void sendToClient(int socketFD, char *string)
 	}
 }
 
+char* receiveFromClient(int socketFD, char *string)
+{
+	int charsRead;
+	memset(string, '\0', BUFFERSIZE);
+	charsRead = recv(socketFD, string, sizeof(string) - 1, 0);
+	if (charsRead < 0) {
+		error("ERROR reading data from socket"); fflush(stdout);
+	}
+	else if (charsRead < sizeof(*string) - 1) {
+		printf("SERVER: There may be more data from socket.\n"); fflush(stdout);
+	}
+
+	return string;
+}
 
 char* encryptText(char *text, char *key)
 {
+	int charCount = 0;
 	char textChar, keyChar;
 	char *encryptedText = malloc(sizeof(char) * BUFFERSIZE);
-	memset(encryptedText, '\0', BUFFERSIZE);
+	memset(encryptedText, '\0', 20);
 
-	while ((textChar = fgetc(text)) != '\n') {
+	while (text[charCount] != '\n') {
+		textChar = text[charCount];
 		if (textChar != 32)
-			textChar -= 64;
+			textChar -= 65;
 		else
 			textChar -= 7;
-		keyChar = fgetc(key);
+
+		keyChar = key[charCount];
 		if (keyChar != 32)
-			keyChar -= 64;
+			keyChar -= 65;
 		else
 			keyChar -= 7;
-		textChar %= 26;
-		printf(textChar);
-		textChar += 65;
+
+		textChar += keyChar;
+		textChar %= 27;
+
+		if (textChar == 27)
+			textChar = 32;
+		else
+			textChar += 65;
+
+		encryptedText[charCount++] = textChar;
 	}
+
+	return encryptedText;
 }

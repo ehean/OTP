@@ -8,7 +8,6 @@ int main (int argc, char* argv[])
     } // Check usage & args
 
     int keyLength = atoi(argv[1]);
-    printf("keylen = %d\n", keyLength);
     char* key = malloc(sizeof(char) * (keyLength + 1));
     int asciiVal;
     time_t t;

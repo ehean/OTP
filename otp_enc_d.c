@@ -26,8 +26,8 @@ int verifyClient(int fd);
 void sendToClient(int socketFD, char *string);
 char* receiveFromClient(int socketFD, char *string);
 char* encryptText(char *text, char *key);
-
 void* acceptConnection(void* socketFDPtr);
+
 int main(int argc, char *argv[])
 {
 	if (argc < 2) { fprintf(stderr, "USAGE: %s port\n", argv[0]); exit(1); } // Check usage & args
@@ -83,17 +83,20 @@ void listenAndAcceptConnections(char* port)
 		socketFDPtr = &establishedConnectionFD;
 		if (establishedConnectionFD) {
 			int i;
-			//for (i = 0; i < 5; ++i) {
-			//	if (!socketThreads[i].inUse) {
+			for (i = 0; i < 5; ++i) {
+				if (!socketThreads[i].inUse) {
 					//pthread_mutex_lock(&myMutex);
 					socketThreads[0].inUse = 1;
 					threadReturn = pthread_create(&socketThreads[i].thread, NULL, acceptConnection, socketFDPtr);
 					pthread_join(socketThreads[i].thread, NULL);
-				//}
-		//	}
+					printf("joining thread\n"); fflush (stdout);
+					break;
+				}
+			}
 		}
 	}
 	close(listenSocketFD); // Close the listening socket
+	printf("closing socket\n"); fflush (stdout);
 }
 
 
@@ -164,6 +167,7 @@ void *acceptConnection(void* socketFDPtr)
 	}
 
 	close(*establishedConnectionFDPtr); // Close the existing socket which is connected to the client
+	printf("closing socket connection\n");
 }
 
 
@@ -223,7 +227,7 @@ char* encryptText(char *text, char *key)
 	char *encryptedText = malloc(sizeof(char) * BUFFERSIZE);
 	memset(encryptedText, '\0', 20);
 
-	while (text[charCount] != '\n') {
+	while (text[charCount] != '\n' && text[charCount] != '\0') {
 		textChar = text[charCount];
 		if (textChar != 32)
 			textChar -= 65;

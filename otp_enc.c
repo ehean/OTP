@@ -115,15 +115,17 @@ void stringifyPlainTextAndKey(FILE *plain, FILE *key, char* plainTextString, cha
 	int keyCount = 0;
 	char c;
 
-	while ((c = fgetc(plain)) != '\n')
-	{
-		if ((c < 65 && c != 32) || c > 90) {
-			printf("Plain text file has bad character: %c --> %d.\n", c, c); fflush(stderr);
-			exit(1);
-		}
+	if (plain != NULL) {
+		while ((c = fgetc(plain)) != EOF || (c = fgetc(plain)) != '\n')
+		{
+			if ((c < 65 && c != 32) || c > 90) {
+				printf("Plain text file has bad character: %c --> %d.\n", c, c); fflush(stderr);
+				exit(1);
+			}
 
-		plainTextString[plainTextCount] = c;
-		plainTextCount++;
+			plainTextString[plainTextCount] = c;
+			plainTextCount++;
+		}
 	}
 
 	while ((c = fgetc(key)) != EOF)

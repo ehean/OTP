@@ -7,7 +7,7 @@
 #include <netinet/in.h>
 #include <pthread.h>
 
-const int BUFFERSIZE = 10000;
+const int BUFFERSIZE = 1000000;
 
 pthread_mutex_t myMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_t game_thread, time_thread;
@@ -89,14 +89,14 @@ void listenAndAcceptConnections(char* port)
 					socketThreads[0].inUse = 1;
 					threadReturn = pthread_create(&socketThreads[i].thread, NULL, acceptConnection, socketFDPtr);
 					pthread_join(socketThreads[i].thread, NULL);
-					printf("joining thread\n"); fflush (stdout);
+					//printf("joining thread\n"); fflush (stdout);
 					break;
 				}
 			}
 		}
 	}
 	close(listenSocketFD); // Close the listening socket
-	printf("closing socket\n"); fflush (stdout);
+	//printf("closing socket\n"); fflush (stdout);
 }
 
 
@@ -108,66 +108,112 @@ void *acceptConnection(void* socketFDPtr)
 	socklen_t sizeOfClientInfo;
 	char *clientConfirmationCode = "otp_enc";
 	char *serverConfirmationCode = "otp_enc_d";
-	char buffer[BUFFERSIZE];
+	char readBuffer[BUFFERSIZE];
+	char completeMessage[BUFFERSIZE];
 	char key [BUFFERSIZE];
 	char plainText[BUFFERSIZE];
 
 	// Get the message from the client and display it
-	memset(buffer, '\0', 256);
+	memset(readBuffer, '\0', 256);
 	//charsRead = recv(establishedConnectionFD, buffer, 255, 0); // Read the client's message from the socket
 
-	printf("acceptConnection caled\n"); fflush(stdout);
+	//printf("acceptConnection caled\n"); fflush(stdout);
 
 	/*************************************************************************************
 	** Perform three-way handshake
 	**************************************************************************************/
-	charsRead = recv(*establishedConnectionFDPtr, buffer, sizeof(buffer) - 1, 0);
+	charsRead = recv(*establishedConnectionFDPtr, readBuffer, sizeof(readBuffer) - 1, 0);
 	if (charsRead < 0) {
 		error("ERROR reading data from socket"); fflush(stdout);
 	}
-	else if (charsRead < sizeof(buffer) - 1) {
-		printf("SERVER: There may be more data from socket.\n"); fflush(stdout);
+	else if (charsRead < sizeof(readBuffer) - 1) {
+		//printf("SERVER: There may be more data from socket.\n"); fflush(stdout);
 	}
 
 	if (charsRead < 0)
 		error("ERROR reading from socket");
-	else if (strcmp(buffer, clientConfirmationCode) == 0) {
-		printf("SERVER: client is verified: \"%s\".\n", buffer);
+	else if (strcmp(readBuffer, clientConfirmationCode) == 0) {
+		//printf("SERVER: client is verified: \"%s\".\n", readBuffer);
 
 
 		sendToClient(*establishedConnectionFDPtr, serverConfirmationCode);
 		//key = receiveFromClient(establishedConnectionFD, buffer);
 		memset(key, '\0', BUFFERSIZE);
-		charsRead = recv(*establishedConnectionFDPtr, key, sizeof(key) - 1, 0);
-		if (charsRead < 0) {
-			error("ERROR reading data from socket"); fflush(stdout);
-		}
-		else if (charsRead < sizeof(key) - 1) {
-			printf("SERVER: There may be more data from socket.\n"); fflush(stdout);
-		}
 
-		printf("SERVER received key: %s\n", key); //fflush(stdout);
+		//pthread_mutex_lock(&myMutex);
+		
+		memset(completeMessage, '\0', sizeof(completeMessage));
+
+		while (strstr(completeMessage, "\n") == NULL) 
+		{
+			memset(readBuffer, '\0', sizeof(readBuffer));
+			charsRead = recv(*establishedConnectionFDPtr, readBuffer, sizeof(readBuffer) - 1, 0);
+			strcat(completeMessage, readBuffer);
+			//printf("SERVER: Message received from child: \"%s\", total: \"%s\"\n", readBuffer, completeMessage);
+			if (charsRead < 0) 
+				error("ERROR reading data from socket"); fflush(stdout); break;
+			if (charsRead == 0)
+				break;
+		}
+		// do {
+
+		// 	incomingBytes -= charsRead;
+		// 	charsRead = recv(*establishedConnectionFDPtr, key, incomingBytes, 0);
+		// 	if (charsRead < 0) {
+		// 		error("ERROR reading data from socket"); fflush(stdout);
+		// 	}
+			
+		// 	printf("SERVER charsRead: %d\n", charsRead); fflush(stdout);
+		// 	printf("SERVER strlen key: %zu\n", strlen(key)); fflush(stdout);
+		// } while (charsRead < incomingBytes);
+		
+		//pthread_mutex_unlock(&myMutex);
+		strcpy(key, completeMessage);
+		//printf("SERVER received key: %s\n", key); fflush(stdout);
 
 		//plainText = receiveFromClient(establishedConnectionFD, buffer);
-		charsRead = recv(*establishedConnectionFDPtr, plainText, sizeof(plainText) - 1, 0);
-		if (charsRead < 0) {
-			error("ERROR reading data from socket"); fflush(stdout);
-		}
-		else if (charsRead < sizeof(plainText) - 1) {
-			printf("SERVER: There may be more data from socket.\n"); fflush(stdout);
-		}
 
-		printf("SERVER received plain text: %s\n", plainText); //fflush(stdout);
+		//pthread_mutex_lock(&myMutex);
+		// charsRead = 0;
+		// incomingBytes = sizeof(plainText) -1;
+		// do {
 
-		char *encryptedText = encryptText(plainText, key);
-		sendToClient(*establishedConnectionFDPtr, encryptedText);
+		// 	incomingBytes -= charsRead;
+		// 	charsRead = recv(*establishedConnectionFDPtr, plainText, incomingBytes, 0);
+		// 	if (charsRead < 0) {
+		// 		error("ERROR reading data from socket"); fflush(stdout);
+		// 	}
+			
+		// 	printf("SERVER charsRead: %d\n", charsRead); fflush(stdout);
+		// 	printf("SERVER strlen key: %zu\n", strlen(key)); fflush(stdout);
+		// } while (charsRead < incomingBytes);
+		//pthread_mutex_unlock(&myMutex);
+
+		memset(completeMessage, '\0', sizeof(completeMessage));
+
+		while (strstr(completeMessage, "\n") == NULL) 
+		{
+			memset(readBuffer, '\0', sizeof(readBuffer));
+			charsRead = recv(*establishedConnectionFDPtr, readBuffer, sizeof(readBuffer) - 1, 0);
+			strcat(completeMessage, readBuffer);
+			//printf("SERVER: Message received from child: \"%s\", total: \"%s\"\n", readBuffer, completeMessage);
+			if (charsRead < 0) 
+				error("ERROR reading data from socket"); fflush(stdout); break;
+			if (charsRead == 0)
+				break;
+		}
+		strcpy(plainText, completeMessage);
+		//printf("SERVER received plain text: %s\n", plainText); //fflush(stdout);
+
+		char *encryptedText = encryptText(plainText, key); fflush(stdout);
+		sendToClient(*establishedConnectionFDPtr, encryptedText); fflush(stdout);
 	}
 	else {
-		printf("SERVER: client is not verified: %s . Closing Connection.\n", buffer);
+		printf("SERVER: client is not verified: %s . Closing Connection.\n", readBuffer);
 	}
 
 	close(*establishedConnectionFDPtr); // Close the existing socket which is connected to the client
-	printf("closing socket connection\n");
+	//printf("closing socket connection\n");
 }
 
 
@@ -182,7 +228,7 @@ int verifyClient(int fd)
 	memset(result, 0, sizeof(result));
 	readlink(path, result, sizeof(result) - 1);
 
-	printf("\nclient: %s\n", result);
+	//printf("\nclient: %s\n", result);
 
 	if (result == "otp_enc")
 		return 1;
@@ -200,8 +246,8 @@ void sendToClient(int socketFD, char *string)
 	else if (charsWritten < strlen(string))
 		printf("SERVER: WARNING: Not all data written to socket!\n");
 	else {
-		printf("SERVER charsWritten: %d\n", charsWritten); fflush(stdout);
-		printf("SERVER strlen: %zu\n", strlen(string)); fflush(stdout);
+		//printf("SERVER charsWritten: %d\n", charsWritten); fflush(stdout);
+		//printf("SERVER strlen: %zu\n", strlen(string)); fflush(stdout);
 	}
 }
 
@@ -214,7 +260,7 @@ char* receiveFromClient(int socketFD, char *string)
 		error("ERROR reading data from socket"); fflush(stdout);
 	}
 	else if (charsRead < sizeof(*string) - 1) {
-		printf("SERVER: There may be more data from socket.\n"); fflush(stdout);
+		//printf("SERVER: There may be more data from socket.\n"); fflush(stdout);
 	}
 
 	return string;
@@ -243,7 +289,7 @@ char* encryptText(char *text, char *key)
 		textChar += keyChar;
 		textChar %= 27;
 
-		if (textChar == 27)
+		if (textChar == 26)
 			textChar = 32;
 		else
 			textChar += 65;

@@ -17,15 +17,14 @@ int main (int argc, char* argv[])
     int i;
     for (i = 0; i < keyLength; ++i) {
 
-        //printf("i: %d\n", i);
         asciiVal = rand() % 27;
 
-        if (asciiVal == 27)
+        if (asciiVal == 26)
 			asciiVal = 32;
 		else
 			asciiVal += 65;
 
-        key[i] = asciiVal;
+        key[i] = asciiVal;    
     }
 
     key[i] = '\n';

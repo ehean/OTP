@@ -139,6 +139,8 @@ void stringifyPlainTextAndKey(FILE *plain, FILE *key, char* plainTextString, cha
 		exit(1);
 	}
 
+	plain.close();
+	key.close();
 }
 
 

@@ -11,7 +11,7 @@ const int BUFFERSIZE = 10000;
 
 pthread_mutex_t myMutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_t game_thread, time_thread;
-int game_return, time_return;
+int threadReturn;
 
 struct socketThread {
 	pthread_t thread;
@@ -27,6 +27,7 @@ void sendToClient(int socketFD, char *string);
 char* receiveFromClient(int socketFD, char *string);
 char* encryptText(char *text, char *key);
 
+void* acceptConnection(void* socketFDPtr);
 int main(int argc, char *argv[])
 {
 	if (argc < 2) { fprintf(stderr, "USAGE: %s port\n", argv[0]); exit(1); } // Check usage & args
@@ -68,22 +69,37 @@ void listenAndAcceptConnections(char* port)
 	listen(listenSocketFD, 5); // Flip the socket on - it can now receive up to 5 connections
 
 	while (1) {
+
+		// Get the size of the address for the client that will connect
+		sizeOfClientInfo = sizeof(clientAddress);
+		 // Accept a connection, blocking if one is not available until one connects
+		establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
+
+		if (establishedConnectionFD < 0)
+			error("ERROR on accept");
+
 		//getAvailableThread();
-		int i;
-		for (i = 0; i < 5; ++i) {
-			if (!socketThreads[i].inUse) {
-				pthread_mutex_lock(&myMutex);
-				socketThreads[i].inUse = 1;
-				game_return = pthread_create(&socketThreads[i].thread, NULL, acceptConnection, &listenSocketFD);
-			}
+		void *socketFDPtr;
+		socketFDPtr = &establishedConnectionFD;
+		if (establishedConnectionFD) {
+			int i;
+			//for (i = 0; i < 5; ++i) {
+			//	if (!socketThreads[i].inUse) {
+					//pthread_mutex_lock(&myMutex);
+					socketThreads[0].inUse = 1;
+					threadReturn = pthread_create(&socketThreads[i].thread, NULL, acceptConnection, socketFDPtr);
+					pthread_join(socketThreads[i].thread, NULL);
+				//}
+		//	}
 		}
 	}
 	close(listenSocketFD); // Close the listening socket
 }
 
 
-void *acceptConnection(int listenSocketFD)
+void *acceptConnection(void* socketFDPtr)
 {
+	int *establishedConnectionFDPtr = (int*)socketFDPtr;
 	struct sockaddr_in clientAddress;
 	int establishedConnectionFD, portNumber, charsRead, packetSize;
 	socklen_t sizeOfClientInfo;
@@ -92,18 +108,17 @@ void *acceptConnection(int listenSocketFD)
 	char buffer[BUFFERSIZE];
 	char key [BUFFERSIZE];
 	char plainText[BUFFERSIZE];
-	// Get the size of the address for the client that will connect
-	sizeOfClientInfo = sizeof(clientAddress);
-	 // Accept a connection, blocking if one is not available until one connects
-	establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
-
-	if (establishedConnectionFD < 0)
-		error("ERROR on accept");
 
 	// Get the message from the client and display it
 	memset(buffer, '\0', 256);
 	//charsRead = recv(establishedConnectionFD, buffer, 255, 0); // Read the client's message from the socket
-	charsRead = recv(establishedConnectionFD, buffer, sizeof(buffer) - 1, 0);
+
+	printf("acceptConnection caled\n"); fflush(stdout);
+
+	/*************************************************************************************
+	** Perform three-way handshake
+	**************************************************************************************/
+	charsRead = recv(*establishedConnectionFDPtr, buffer, sizeof(buffer) - 1, 0);
 	if (charsRead < 0) {
 		error("ERROR reading data from socket"); fflush(stdout);
 	}
@@ -116,11 +131,11 @@ void *acceptConnection(int listenSocketFD)
 	else if (strcmp(buffer, clientConfirmationCode) == 0) {
 		printf("SERVER: client is verified: \"%s\".\n", buffer);
 
-		sendToClient(establishedConnectionFD, serverConfirmationCode);
 
+		sendToClient(*establishedConnectionFDPtr, serverConfirmationCode);
 		//key = receiveFromClient(establishedConnectionFD, buffer);
 		memset(key, '\0', BUFFERSIZE);
-		charsRead = recv(establishedConnectionFD, key, sizeof(key) - 1, 0);
+		charsRead = recv(*establishedConnectionFDPtr, key, sizeof(key) - 1, 0);
 		if (charsRead < 0) {
 			error("ERROR reading data from socket"); fflush(stdout);
 		}
@@ -131,7 +146,7 @@ void *acceptConnection(int listenSocketFD)
 		printf("SERVER received key: %s\n", key); //fflush(stdout);
 
 		//plainText = receiveFromClient(establishedConnectionFD, buffer);
-		charsRead = recv(establishedConnectionFD, plainText, sizeof(plainText) - 1, 0);
+		charsRead = recv(*establishedConnectionFDPtr, plainText, sizeof(plainText) - 1, 0);
 		if (charsRead < 0) {
 			error("ERROR reading data from socket"); fflush(stdout);
 		}
@@ -142,13 +157,13 @@ void *acceptConnection(int listenSocketFD)
 		printf("SERVER received plain text: %s\n", plainText); //fflush(stdout);
 
 		char *encryptedText = encryptText(plainText, key);
-		sendToClient(establishedConnectionFD, encryptedText);
+		sendToClient(*establishedConnectionFDPtr, encryptedText);
 	}
 	else {
 		printf("SERVER: client is not verified: %s . Closing Connection.\n", buffer);
 	}
 
-	close(establishedConnectionFD); // Close the existing socket which is connected to the client
+	close(*establishedConnectionFDPtr); // Close the existing socket which is connected to the client
 }
 
 

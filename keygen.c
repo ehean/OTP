@@ -17,7 +17,7 @@ int main (int argc, char* argv[])
     int i;
     for (i = 0; i < keyLength; ++i) {
 
-        asciiVal = rand() % 26;
+        asciiVal = rand() % 27;
 
         if (asciiVal == 26)
 			asciiVal = 32;

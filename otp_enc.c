@@ -12,7 +12,8 @@ const int BUFFERSIZE = 10000;
 void error(const char *msg) { perror(msg); exit(0); } // Error function used for reporting issues
 void connectAndSendData(char* plainTextPath, char* keyPath, char* port);
 void stringifyPlainTextAndKey(FILE *plain, FILE *key, char* plainTextString, char* keyString);
-void sendToServer(int socketFD, char* string, size_t size);
+void sendToServer(int socketFD, char* string);
+char* receiveFromServer(int socketFD, char *string);
 
 int main(int argc, char *argv[])
 {
@@ -32,9 +33,11 @@ void connectAndSendData(char* plainTextPath, char* keyPath, char* port)
 	struct hostent* serverHostInfo;
 	char *clientConfirmationCode = "otp_enc";
 	char *serverConfirmationCode = "otp_enc_d";
-	char buffer[256];
-	char *plainTextString = malloc(sizeof(char) * BUFFERSIZE);
-	char *keyString = malloc(sizeof(char) * BUFFERSIZE);
+	char buffer[BUFFERSIZE];
+	char getConfirmation[BUFFERSIZE];
+	char plainTextString[BUFFERSIZE];
+	char keyString[BUFFERSIZE];
+	char encryptedText[BUFFERSIZE];
 
 	FILE *plain, *key;
 
@@ -60,34 +63,47 @@ void connectAndSendData(char* plainTextPath, char* keyPath, char* port)
 	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
 		error("CLIENT: ERROR connecting");
 
-	// Get input message from user
-	//printf("CLIENT: Enter text to send to the server, and then hit enter: ");
-	//memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
-	//fgets(buffer, sizeof(buffer) - 1, stdin); // Get input from the user, trunc to buffer - 1 chars, leaving \0
-	//buffer[strcspn(buffer, "\n")] = '\0'; // Remove the trailing \n that fgets adds
-
-
 	// Initiate three-way handshake (sent client code)
-	sendToServer(socketFD, clientConfirmationCode, strlen(clientConfirmationCode));
+	sendToServer(socketFD, clientConfirmationCode);
 
 	// Get return message from server, confirm server code
 	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer again for reuse
-	charsRead = recv(socketFD, buffer, sizeof(buffer) - 1, 0); // Read data from the socket, leaving \0 at end
 
-	if (charsRead < 0)
-		error("CLIENT: ERROR reading from socket");
+	//getConfirmation = receiveFromServer(socketFD, buffer);
+	memset(getConfirmation, '\0', BUFFERSIZE);
+	charsRead = recv(socketFD, getConfirmation, sizeof(getConfirmation) - 1, 0);
+	if (charsRead < 0) {
+		error("ERROR reading data from socket"); fflush(stdout);
+	}
+	else if (charsRead < sizeof(getConfirmation) - 1) {
+		printf("CLIENT: There may be more data from socket.\n"); fflush(stdout);
+	}
+	printf("Encrypted Text: %s\n", encryptedText); fflush(stdout);
 
-	if (strcmp(buffer, serverConfirmationCode) == 0) {
-		printf("Three-way handshake complete. Begin sending data.\n");
+	if (strcmp(getConfirmation, serverConfirmationCode) == 0) {
+		printf("CLIENT: Three-way handshake complete. Begin sending data.\n");
 
 		printf("CLIENT sending key:\n %s\n", keyString);
 		printf("CLIENT sending plain text:\n %s\n", plainTextString);
 
-		sendToServer(socketFD, keyString, BUFFERSIZE);
-		sendToServer(socketFD, plainTextString, BUFFERSIZE);
-	}
+		sendToServer(socketFD, keyString);
+		sendToServer(socketFD, plainTextString);
 
-	//printf("CLIENT: I received this from the server: \"%s\"\n", buffer);
+		//encryptedText = receiveFromServer(socketFD, buffer);
+
+		memset(encryptedText, '\0', BUFFERSIZE);
+		charsRead = recv(socketFD, encryptedText, sizeof(encryptedText) - 1, 0);
+		if (charsRead < 0) {
+			error("ERROR reading data from socket"); fflush(stdout);
+		}
+		else if (charsRead < sizeof(encryptedText) - 1) {
+			printf("CLIENT: There may be more data from socket.\n"); fflush(stdout);
+		}
+		printf("Encrypted Text: %s\n", encryptedText); fflush(stdout);
+	}
+	else {
+		printf("CLIENT: Failed to receive proper server-side confirmation code. Exiting.\n");
+	}
 
 	close(socketFD); // Close the socket
 }
@@ -123,19 +139,36 @@ void stringifyPlainTextAndKey(FILE *plain, FILE *key, char* plainTextString, cha
 		exit(1);
 	}
 
+	fclose(plain);
+	fclose(key);
 }
 
 
-void sendToServer(int socketFD, char *string, size_t size)
+void sendToServer(int socketFD, char *string)
 {
 	int charsWritten;
-	charsWritten = send(socketFD, string, size-1, 0); // Write to the server
+	charsWritten = send(socketFD, string, strlen(string), 0); // Write to the server
 	if (charsWritten < 0)
 		error("CLIENT: ERROR writing to socket");
 	else if (charsWritten < strlen(string))
 		printf("CLIENT: WARNING: Not all data written to socket!\n");
 	else {
 		printf("charsWritten: %d\n", charsWritten);
-		printf("strlen: %d\n", strlen(string));
+		printf("strlen: %zu\n", strlen(string));
 	}
+}
+
+char* receiveFromServer(int socketFD, char *string)
+{
+	int charsRead;
+	memset(string, '\0', BUFFERSIZE);
+	charsRead = recv(socketFD, string, sizeof(string) - 1, 0);
+	if (charsRead < 0) {
+		error("ERROR reading data from socket"); fflush(stdout);
+	}
+	else if (charsRead < sizeof(*string) - 1) {
+		printf("CLIENT: There may be more data from socket.\n"); fflush(stdout);
+	}
+
+	return string;
 }

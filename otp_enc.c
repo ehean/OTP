@@ -33,12 +33,14 @@ void connectAndSendData(char* plainTextPath, char* keyPath, char* port)
 	struct hostent* serverHostInfo;
 	char *clientConfirmationCode = "otp_enc";
 	char *serverConfirmationCode = "otp_enc_d";
+	char *terminal = "@@";
 	char readBuffer[BUFFERSIZE];
 	char completeMessage[BUFFERSIZE];
 	char getConfirmation[BUFFERSIZE];
 	char plainTextString[BUFFERSIZE];
 	char keyString[BUFFERSIZE];
 	char encryptedText[BUFFERSIZE];
+
 
 	FILE *plain, *key;
 
@@ -89,23 +91,33 @@ void connectAndSendData(char* plainTextPath, char* keyPath, char* port)
 
 		sendToServer(socketFD, keyString);
 		sendToServer(socketFD, plainTextString);
+		sendToServer(socketFD, terminal);
 
 		//encryptedText = receiveFromServer(socketFD, buffer);
-		memset(completeMessage, '\0', sizeof(completeMessage));
-		while (strstr(completeMessage, "\n") == NULL) 
-		{
-			memset(readBuffer, '\0', sizeof(readBuffer));
-			charsRead = recv(socketFD, readBuffer, sizeof(readBuffer) - 1, 0);
-			strcat(completeMessage, readBuffer);
-			//printf("SERVER: Message received from child: \"%s\", total: \"%s\"\n", readBuffer, completeMessage);
-			if (charsRead < 0) 
-				error("ERROR reading data from socket"); fflush(stdout); break;
-			if (charsRead == 0)
-				break;
+		// memset(completeMessage, '\0', sizeof(completeMessage));
+		// while (strstr(completeMessage, "\n") == NULL) 
+		// {
+		// 	memset(readBuffer, '\0', sizeof(readBuffer));
+		// 	charsRead = recv(socketFD, readBuffer, sizeof(readBuffer) - 1, 0);
+		// 	strcat(completeMessage, readBuffer);
+		// 	printf("SERVER: Message received from child: \"%s\", total: \"%s\"\n", readBuffer, completeMessage);
+		// 	if (charsRead < 0) 
+		// 		error("ERROR reading data from socket"); fflush(stdout); break;
+		// 	if (charsRead == 0)
+		// 		break;
+		// }
+
+	
+		charsRead = recv(socketFD, encryptedText, sizeof(encryptedText) - 1, 0);
+		if (charsRead < 0) {
+			error("ERROR reading data from socket"); fflush(stdout);
+		}
+		else if (charsRead < sizeof(encryptedText) - 1) {
+			//printf("CLIENT: There may be more data from socket.\n"); fflush(stdout);
 		}
 
-		strcpy(encryptedText, completeMessage);
-		//printf("Encrypted Text: %s\n", encryptedText); fflush(stdout);
+		//strcpy(encryptedText, completeMessage);
+		printf("%s", encryptedText); fflush(stdout);
 	}
 	else {
 		printf("CLIENT: Failed to receive proper server-side confirmation code. Exiting.\n");

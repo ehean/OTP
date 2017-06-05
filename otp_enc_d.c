@@ -144,17 +144,36 @@ void *acceptConnection(void* socketFDPtr)
 		
 		memset(completeMessage, '\0', sizeof(completeMessage));
 
-		while (strstr(completeMessage, "\n") == NULL) 
+		while (strstr(completeMessage, "@@") == NULL) 
 		{
 			memset(readBuffer, '\0', sizeof(readBuffer));
 			charsRead = recv(*establishedConnectionFDPtr, readBuffer, sizeof(readBuffer) - 1, 0);
 			strcat(completeMessage, readBuffer);
 			//printf("SERVER: Message received from child: \"%s\", total: \"%s\"\n", readBuffer, completeMessage);
 			if (charsRead < 0) 
-				error("ERROR reading data from socket"); fflush(stdout); break;
+				error("ERROR reading data from socket"); fflush(stdout); //break;
 			if (charsRead == 0)
-				break;
+				;//break;
 		}
+
+		int i = 0;
+		while (completeMessage[i] != '\n') {
+			key[i++] = completeMessage[i];
+		}
+		//key[i] = '\n';
+		//printf("key: %s\n", key);
+		
+		i++;
+		int j =0;
+		while (completeMessage[i] != '@') {
+			plainText[j++] = completeMessage[i++];
+		}
+		//printf("plaintext: %s\n", plainText);
+		//plainText[i] = '\n';
+		// memset(plainText, '\0', BUFFERSIZE);
+		// strncpy(plainText, completeMessage + strlen(completeMessage), i);
+
+		//printf("plainText: %s", plainText);
 		// do {
 
 		// 	incomingBytes -= charsRead;
@@ -168,7 +187,7 @@ void *acceptConnection(void* socketFDPtr)
 		// } while (charsRead < incomingBytes);
 		
 		//pthread_mutex_unlock(&myMutex);
-		strcpy(key, completeMessage);
+		//strcpy(key, completeMessage);
 		//printf("SERVER received key: %s\n", key); fflush(stdout);
 
 		//plainText = receiveFromClient(establishedConnectionFD, buffer);
@@ -189,21 +208,21 @@ void *acceptConnection(void* socketFDPtr)
 		// } while (charsRead < incomingBytes);
 		//pthread_mutex_unlock(&myMutex);
 
-		memset(completeMessage, '\0', sizeof(completeMessage));
+		// memset(completeMessage, '\0', sizeof(completeMessage));
 
-		while (strstr(completeMessage, "\n") == NULL) 
-		{
-			memset(readBuffer, '\0', sizeof(readBuffer));
-			charsRead = recv(*establishedConnectionFDPtr, readBuffer, sizeof(readBuffer) - 1, 0);
-			strcat(completeMessage, readBuffer);
-			//printf("SERVER: Message received from child: \"%s\", total: \"%s\"\n", readBuffer, completeMessage);
-			if (charsRead < 0) 
-				error("ERROR reading data from socket"); fflush(stdout); break;
-			if (charsRead == 0)
-				break;
-		}
-		strcpy(plainText, completeMessage);
-		//printf("SERVER received plain text: %s\n", plainText); //fflush(stdout);
+		// while (strstr(completeMessage, "\n") == NULL) 
+		// {
+		// 	memset(readBuffer, '\0', sizeof(readBuffer));
+		// 	charsRead = recv(*establishedConnectionFDPtr, readBuffer, sizeof(readBuffer) - 1, 0);
+		// 	strcat(completeMessage, readBuffer);
+		// 	printf("SERVER: Message received from child: \"%s\", total: \"%s\"\n", readBuffer, completeMessage);
+		// 	if (charsRead < 0) 
+		// 		error("ERROR reading data from socket"); fflush(stdout); break;
+		// 	if (charsRead == 0)
+		// 		break;
+		// }
+		// strcpy(plainText, completeMessage);
+		// printf("SERVER received plain text: %s\n", plainText); //fflush(stdout);
 
 		char *encryptedText = encryptText(plainText, key); fflush(stdout);
 		sendToClient(*establishedConnectionFDPtr, encryptedText); fflush(stdout);
@@ -273,7 +292,7 @@ char* encryptText(char *text, char *key)
 	char *encryptedText = malloc(sizeof(char) * BUFFERSIZE);
 	memset(encryptedText, '\0', 20);
 
-	while (text[charCount] != '\n' && text[charCount] != '\0') {
+	while (text[charCount] != '\0') {
 		textChar = text[charCount];
 		if (textChar != 32)
 			textChar -= 65;
@@ -296,6 +315,8 @@ char* encryptText(char *text, char *key)
 
 		encryptedText[charCount++] = textChar;
 	}
+
+	encryptedText[charCount] = '\n';
 
 	return encryptedText;
 }

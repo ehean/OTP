@@ -25,7 +25,7 @@ void listenAndAcceptConnections(char* port);
 int verifyClient(int fd);
 void sendToClient(int socketFD, char *string);
 char* receiveFromClient(int socketFD, char *string);
-char* encryptText(char *text, char *key);
+char* decryptText(char *text, char *key);
 void* acceptConnection(void* socketFDPtr);
 
 int main(int argc, char *argv[])
@@ -42,16 +42,16 @@ void listenAndAcceptConnections(char* port)
 {
 	int listenSocketFD, establishedConnectionFD, portNumber, charsRead, packetSize;
 	socklen_t sizeOfClientInfo;
-	char *clientConfirmationCode = "otp_enc";
-	char *serverConfirmationCode = "otp_enc_d";
+	char *clientConfirmationCode = "otp_dec";
+	char *serverConfirmationCode = "otp_dec_d";
 	char buffer[BUFFERSIZE];
 	char key [BUFFERSIZE];
-	char plainText[BUFFERSIZE];
+	char encryptedText[BUFFERSIZE];
 	struct sockaddr_in serverAddress, clientAddress;
 	int threadCount = 0;
 
 	memset(key, '\0', BUFFERSIZE);
-	memset(plainText, '\0', BUFFERSIZE);
+	memset(encryptedText, '\0', BUFFERSIZE);
 																			 // Set up the address struct for this process (the server)
 	memset((char *)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
 	portNumber = atoi(port); // Get the port number, convert to an integer from a string
@@ -106,12 +106,12 @@ void *acceptConnection(void* socketFDPtr)
 	struct sockaddr_in clientAddress;
 	int establishedConnectionFD, portNumber, charsRead, packetSize;
 	socklen_t sizeOfClientInfo;
-	char *clientConfirmationCode = "otp_enc";
-	char *serverConfirmationCode = "otp_enc_d";
+	char *clientConfirmationCode = "otp_dec";
+	char *serverConfirmationCode = "otp_dec_d";
 	char readBuffer[BUFFERSIZE];
 	char completeMessage[BUFFERSIZE];
 	char key [BUFFERSIZE];
-	char plainText[BUFFERSIZE];
+	char encryptedText[BUFFERSIZE];
 
 	// Get the message from the client and display it
 	memset(readBuffer, '\0', 256);
@@ -166,14 +166,14 @@ void *acceptConnection(void* socketFDPtr)
 		i++;
 		int j =0;
 		while (completeMessage[i] != '@') {
-			plainText[j++] = completeMessage[i++];
+			encryptedText[j++] = completeMessage[i++];
 		}
-		//printf("plaintext: %s\n", plainText);
-		//plainText[i] = '\n';
-		// memset(plainText, '\0', BUFFERSIZE);
-		// strncpy(plainText, completeMessage + strlen(completeMessage), i);
+		//printf("encryptedText: %s\n", encryptedText);
+		//encryptedText[i] = '\n';
+		// memset(encryptedText, '\0', BUFFERSIZE);
+		// strncpy(encryptedText, completeMessage + strlen(completeMessage), i);
 
-		//printf("plainText: %s", plainText);
+		//printf("encryptedText: %s", encryptedText);
 		// do {
 
 		// 	incomingBytes -= charsRead;
@@ -190,15 +190,15 @@ void *acceptConnection(void* socketFDPtr)
 		//strcpy(key, completeMessage);
 		//printf("SERVER received key: %s\n", key); fflush(stdout);
 
-		//plainText = receiveFromClient(establishedConnectionFD, buffer);
+		//encryptedText = receiveFromClient(establishedConnectionFD, buffer);
 
 		//pthread_mutex_lock(&myMutex);
 		// charsRead = 0;
-		// incomingBytes = sizeof(plainText) -1;
+		// incomingBytes = sizeof(encryptedText) -1;
 		// do {
 
 		// 	incomingBytes -= charsRead;
-		// 	charsRead = recv(*establishedConnectionFDPtr, plainText, incomingBytes, 0);
+		// 	charsRead = recv(*establishedConnectionFDPtr, encryptedText, incomingBytes, 0);
 		// 	if (charsRead < 0) {
 		// 		error("ERROR reading data from socket"); fflush(stdout);
 		// 	}
@@ -221,11 +221,12 @@ void *acceptConnection(void* socketFDPtr)
 		// 	if (charsRead == 0)
 		// 		break;
 		// }
-		// strcpy(plainText, completeMessage);
-		// printf("SERVER received plain text: %s\n", plainText); //fflush(stdout);
+		// strcpy(encryptedText, completeMessage);
+		// printf("SERVER received plain text: %s\n", encryptedText); //fflush(stdout);
 
-		char *encryptedText = encryptText(plainText, key); fflush(stdout);
-		sendToClient(*establishedConnectionFDPtr, encryptedText); fflush(stdout);
+		char *decryptedText = decryptText(encryptedText, key); fflush(stdout);
+        printf("decrypted Text = %s\n", decryptedText);
+		sendToClient(*establishedConnectionFDPtr, decryptedText); fflush(stdout);
 	}
 	else {
 		printf("SERVER: client is not verified: %s . Closing Connection.\n", readBuffer);
@@ -285,12 +286,12 @@ char* receiveFromClient(int socketFD, char *string)
 	return string;
 }
 
-char* encryptText(char *text, char *key)
+char* decryptText(char *text, char *key)
 {
 	int charCount = 0;
 	char textChar, keyChar;
-	char *encryptedText = malloc(sizeof(char) * BUFFERSIZE);
-	memset(encryptedText, '\0', 20);
+	char *decryptedText = malloc(sizeof(char) * BUFFERSIZE);
+	memset(decryptedText, '\0', 20);
 
 	while (text[charCount] != '\0') {
 		textChar = text[charCount];
@@ -305,7 +306,11 @@ char* encryptText(char *text, char *key)
 		else
 			keyChar = 26;
 
-		textChar += keyChar;
+		textChar -= keyChar;
+
+        if (textChar < 0)
+            textChar += 27;
+
 		textChar %= 27;
 
 		if (textChar == 26)
@@ -313,10 +318,10 @@ char* encryptText(char *text, char *key)
 		else
 			textChar += 65;
 
-		encryptedText[charCount++] = textChar;
+		decryptedText[charCount++] = textChar;
 	}
 
-	encryptedText[charCount] = '\n';
+	decryptedText[charCount] = '\n';
 
-	return encryptedText;
+	return decryptedText;
 }

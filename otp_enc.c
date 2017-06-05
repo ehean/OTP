@@ -33,12 +33,14 @@ void connectAndSendData(char* plainTextPath, char* keyPath, char* port)
 	struct hostent* serverHostInfo;
 	char *clientConfirmationCode = "otp_enc";
 	char *serverConfirmationCode = "otp_enc_d";
+	char *terminal = "@@";
 	char readBuffer[BUFFERSIZE];
 	char completeMessage[BUFFERSIZE];
 	char getConfirmation[BUFFERSIZE];
 	char plainTextString[BUFFERSIZE];
 	char keyString[BUFFERSIZE];
 	char encryptedText[BUFFERSIZE];
+
 
 	FILE *plain, *key;
 
@@ -82,13 +84,14 @@ void connectAndSendData(char* plainTextPath, char* keyPath, char* port)
 	//printf("Encrypted Text: %s\n", encryptedText); fflush(stdout);
 
 	if (strcmp(getConfirmation, serverConfirmationCode) == 0) {
-		printf("CLIENT: Three-way handshake complete. Begin sending data.\n");
+		//printf("CLIENT: Three-way handshake complete. Begin sending data.\n");
 
-		printf("CLIENT sending key:\n %s\n", keyString);
-		printf("CLIENT sending plain text:\n %s\n", plainTextString);
+		//printf("CLIENT sending key:\n %s\n", keyString);
+		//printf("CLIENT sending plain text:\n %s\n", plainTextString);
 
 		sendToServer(socketFD, keyString);
 		sendToServer(socketFD, plainTextString);
+		sendToServer(socketFD, terminal);
 
 		//encryptedText = receiveFromServer(socketFD, buffer);
 		// memset(completeMessage, '\0', sizeof(completeMessage));
@@ -170,8 +173,8 @@ void sendToServer(int socketFD, char *string)
 	else if (charsWritten < strlen(string))
 		printf("CLIENT: WARNING: Not all data written to socket!\n");
 	else {
-		printf("charsWritten: %d\n", charsWritten);
-		printf("strlen: %zu\n", strlen(string));
+		//printf("charsWritten: %d\n", charsWritten);
+		//printf("strlen: %zu\n", strlen(string));
 	}
 }
 

@@ -133,7 +133,7 @@ void *acceptConnection(void* socketFDPtr)
 	if (charsRead < 0)
 		error("ERROR reading from socket");
 	else if (strcmp(readBuffer, clientConfirmationCode) == 0) {
-		printf("SERVER: client is verified: \"%s\".\n", readBuffer);
+		//printf("SERVER: client is verified: \"%s\".\n", readBuffer);
 
 
 		sendToClient(*establishedConnectionFDPtr, serverConfirmationCode);
@@ -144,35 +144,36 @@ void *acceptConnection(void* socketFDPtr)
 		
 		memset(completeMessage, '\0', sizeof(completeMessage));
 
-		//while (strstr(completeMessage, "\n") == NULL) 
-		//{
+		while (strstr(completeMessage, "@@") == NULL) 
+		{
 			memset(readBuffer, '\0', sizeof(readBuffer));
 			charsRead = recv(*establishedConnectionFDPtr, readBuffer, sizeof(readBuffer) - 1, 0);
 			strcat(completeMessage, readBuffer);
-			printf("SERVER: Message received from child: \"%s\", total: \"%s\"\n", readBuffer, completeMessage);
+			//printf("SERVER: Message received from child: \"%s\", total: \"%s\"\n", readBuffer, completeMessage);
 			if (charsRead < 0) 
 				error("ERROR reading data from socket"); fflush(stdout); //break;
 			if (charsRead == 0)
 				;//break;
-		//}
+		}
 
 		int i = 0;
 		while (completeMessage[i] != '\n') {
 			key[i++] = completeMessage[i];
 		}
 		//key[i] = '\n';
-		printf("key: %s\n", key);
+		//printf("key: %s\n", key);
 		
 		i++;
 		int j =0;
-		while (completeMessage[i] != '\n') {
+		while (completeMessage[i] != '@') {
 			plainText[j++] = completeMessage[i++];
 		}
-		plainText[i] = '\n';
+		//printf("plaintext: %s\n", plainText);
+		//plainText[i] = '\n';
 		// memset(plainText, '\0', BUFFERSIZE);
 		// strncpy(plainText, completeMessage + strlen(completeMessage), i);
 
-		printf("plainText: %s", plainText);
+		//printf("plainText: %s", plainText);
 		// do {
 
 		// 	incomingBytes -= charsRead;
@@ -291,7 +292,7 @@ char* encryptText(char *text, char *key)
 	char *encryptedText = malloc(sizeof(char) * BUFFERSIZE);
 	memset(encryptedText, '\0', 20);
 
-	while (text[charCount] != '\n' && text[charCount] != '\0') {
+	while (text[charCount] != '\0') {
 		textChar = text[charCount];
 		if (textChar != 32)
 			textChar -= 65;
@@ -314,6 +315,8 @@ char* encryptText(char *text, char *key)
 
 		encryptedText[charCount++] = textChar;
 	}
+
+	encryptedText[charCount] = '\n';
 
 	return encryptedText;
 }
